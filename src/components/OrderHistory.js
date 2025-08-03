@@ -5,9 +5,17 @@ const OrderHistory = ({ isHistoryOpen, setIsHistoryOpen, orderHistory }) => {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [itemIdFilter, setItemIdFilter] = useState(""); // ✅ New state
+  const [selectedDate, setSelectedDate] = useState(null);
 
-  const filteredOrders = orderHistory
-    .map((order) => {
+  // 1. Filter orders by the selected date first, if a date is selected
+  const ordersForSelectedDate = selectedDate
+    ? orderHistory.filter(order => 
+        new Date(order.createdAt).toDateString() === selectedDate.toDateString()
+      )
+    : orderHistory; // If no date is selected, show all orders
+
+  // 2. Apply other filters (search, status, etc.) to the date-filtered list
+  const filteredOrders = ordersForSelectedDate.map((order) => {
       const filteredItems = order.items.filter(
         (item) =>
           (!searchTerm || item.mobileNumber.includes(searchTerm)) &&
@@ -21,6 +29,16 @@ const OrderHistory = ({ isHistoryOpen, setIsHistoryOpen, orderHistory }) => {
     })
     .filter(Boolean);
 
+  // 3. Calculate stats from the final filtered list of items
+  const finalFilteredItems = filteredOrders.flatMap(order => order.items);
+  const dailyOrderCount = finalFilteredItems.length;
+
+  const totalFilteredAmount = finalFilteredItems.reduce((total, item) => {
+      const price = item.product?.price || 0;
+      const amount = typeof price === 'number' ? price : parseFloat(String(price).replace(/[^\d.-]/g, ""));
+      return total + (isNaN(amount) ? 0 : amount);
+    }, 0);
+
   return (
     <Dialog
       open={isHistoryOpen}
@@ -30,7 +48,12 @@ const OrderHistory = ({ isHistoryOpen, setIsHistoryOpen, orderHistory }) => {
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center px-4 sm:px-6 md:px-8">
         <Dialog.Panel className="bg-white p-4 sm:p-6 rounded-md shadow-lg w-full max-w-[32rem] sm:max-w-lg md:max-w-xl lg:max-w-2xl relative">
           <Dialog.Title className="text-lg font-semibold">
-            Order History
+            <div className="flex justify-between items-center">
+              <span>Order History</span>
+              <span>
+                No. Orders: {dailyOrderCount} || Ord Amnt: Ghs: {totalFilteredAmount.toFixed(2)}
+              </span>
+            </div>
           </Dialog.Title>
 
           <button
@@ -58,6 +81,23 @@ const OrderHistory = ({ isHistoryOpen, setIsHistoryOpen, orderHistory }) => {
               className="border p-2 rounded w-full sm:flex-1"
               value={itemIdFilter}
               onChange={(e) => setItemIdFilter(e.target.value)}
+            />
+
+            {/* Filter by Status */}
+            {/* Date Picker */}
+            <input
+              type="date"
+              className="border p-2 rounded w-full sm:w-auto"
+              value={selectedDate ? selectedDate.toISOString().split('T')[0] : ""}
+              onChange={(e) => {
+                if (e.target.value) {
+                  const date = new Date(e.target.value);
+                  const userTimezoneOffset = date.getTimezoneOffset() * 60000;
+                  setSelectedDate(new Date(date.getTime() + userTimezoneOffset));
+                } else {
+                  setSelectedDate(null);
+                }
+              }}
             />
 
             {/* Filter by Status */}
